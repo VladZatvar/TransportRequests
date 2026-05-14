@@ -2,25 +2,20 @@ package ua.sumdu.practice;
 
 import java.time.LocalDate;
 import java.time.format.DateTimeParseException;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Scanner;
-import java.io.BufferedReader;
-import java.io.BufferedWriter;
-import java.io.File;
-import java.io.FileReader;
-import java.io.FileWriter;
-import java.io.IOException;
-
 
 public class Main {
     private static final String CSV_FILE = "requests.csv";
 
     public static void main(String[] args) {
-        List<Request> requests = new ArrayList<>();
+        CsvStorage storage = new CsvStorage(CSV_FILE);
+        List<Request> requests = storage.load();
         Scanner scanner = new Scanner(System.in);
 
-        loadFromCsv(requests);
+        if (!requests.isEmpty()) {
+            System.out.println("ℹ Завантажено заявок з CSV: " + requests.size());
+        }
 
         while (true) {
             System.out.println("\n=== МЕНЮ ===");
@@ -34,10 +29,10 @@ public class Main {
             String choice = scanner.nextLine().trim();
 
             switch (choice) {
-                case "1" -> addRequest(requests, scanner);
+                case "1" -> addRequest(requests, scanner, storage);
                 case "2" -> printAllRequests(requests);
                 case "3" -> searchMenu(requests, scanner);
-                case "4" -> deleteRequestByNumber(requests, scanner);
+                case "4" -> deleteRequestByNumber(requests, scanner, storage);
                 case "0" -> {
                     System.out.println("Вихід з програми.");
                     return;
@@ -47,8 +42,7 @@ public class Main {
         }
     }
 
-    // ===== ДОДАВАННЯ ЗАЯВКИ =====
-    private static void addRequest(List<Request> requests, Scanner scanner) {
+    private static void addRequest(List<Request> requests, Scanner scanner, CsvStorage storage) {
         System.out.println("\n--- Додавання заявки ---");
 
         int requestNumber;
@@ -65,23 +59,19 @@ public class Main {
         String route = readNonEmpty(scanner, "Введіть маршрут (наприклад: Суми -> Київ): ");
         LocalDate date = readDate(scanner, "Введіть дату (yyyy-mm-dd), наприклад 2025-07-15: ");
 
-        Request request = new Request(requestNumber, vehicle, route, date);
-        requests.add(request);
-        saveToCsv(requests);
+        requests.add(new Request(requestNumber, vehicle, route, date));
+        storage.save(requests);
 
         System.out.println("✅ Заявку додано успішно!");
     }
 
     private static boolean existsRequestNumber(List<Request> requests, int requestNumber) {
         for (Request r : requests) {
-            if (r.getRequestNumber() == requestNumber) {
-                return true;
-            }
+            if (r.getRequestNumber() == requestNumber) return true;
         }
         return false;
     }
 
-    // ===== ВИВІД ТАБЛИЦЕЮ =====
     private static void printAllRequests(List<Request> requests) {
         System.out.println("\n--- Усі заявки ---");
 
@@ -90,11 +80,7 @@ public class Main {
             return;
         }
 
-        // ширини колонок
-        int wNum = 12;
-        int wDate = 12;
-        int wVehicle = 22;
-        int wRoute = 40;
+        int wNum = 12, wDate = 12, wVehicle = 22, wRoute = 40;
 
         String line = "+" + "-".repeat(wNum + 2)
                 + "+" + "-".repeat(wDate + 2)
@@ -108,13 +94,11 @@ public class Main {
         System.out.println(line);
 
         for (Request r : requests) {
-            String num = String.valueOf(r.getRequestNumber());
-            String date = String.valueOf(r.getDate());
-            String vehicle = cut(r.getVehicle(), wVehicle);
-            String route = cut(r.getRoute(), wRoute);
-
             System.out.printf("| %-" + wNum + "s | %-" + wDate + "s | %-" + wVehicle + "s | %-" + wRoute + "s |%n",
-                    num, date, vehicle, route);
+                    r.getRequestNumber(),
+                    r.getDate(),
+                    cut(r.getVehicle(), wVehicle),
+                    cut(r.getRoute(), wRoute));
         }
 
         System.out.println(line);
@@ -127,7 +111,6 @@ public class Main {
         return text.substring(0, Math.max(0, maxLen - 3)) + "...";
     }
 
-    // ===== ПОШУК =====
     private static void searchMenu(List<Request> requests, Scanner scanner) {
         while (true) {
             System.out.println("\n--- Пошук ---");
@@ -143,9 +126,7 @@ public class Main {
                 case "1" -> searchByNumber(requests, scanner);
                 case "2" -> searchByDate(requests, scanner);
                 case "3" -> searchByVehicle(requests, scanner);
-                case "0" -> {
-                    return;
-                }
+                case "0" -> { return; }
                 default -> System.out.println("Невірний вибір. Спробуйте ще раз.");
             }
         }
@@ -162,7 +143,6 @@ public class Main {
                 return;
             }
         }
-
         System.out.println("❌ Заявку з таким номером не знайдено.");
     }
 
@@ -173,17 +153,12 @@ public class Main {
         boolean found = false;
         for (Request r : requests) {
             if (r.getDate().equals(date)) {
-                if (!found) {
-                    System.out.println("✅ Знайдені заявки:");
-                }
+                if (!found) System.out.println("✅ Знайдені заявки:");
                 found = true;
                 printSingle(r);
             }
         }
-
-        if (!found) {
-            System.out.println("❌ На цю дату заявок не знайдено.");
-        }
+        if (!found) System.out.println("❌ На цю дату заявок не знайдено.");
     }
 
     private static void searchByVehicle(List<Request> requests, Scanner scanner) {
@@ -193,17 +168,12 @@ public class Main {
         boolean found = false;
         for (Request r : requests) {
             if (r.getVehicle().toLowerCase().contains(q)) {
-                if (!found) {
-                    System.out.println("✅ Знайдені заявки:");
-                }
+                if (!found) System.out.println("✅ Знайдені заявки:");
                 found = true;
                 printSingle(r);
             }
         }
-
-        if (!found) {
-            System.out.println("❌ За цим авто нічого не знайдено.");
-        }
+        if (!found) System.out.println("❌ За цим авто нічого не знайдено.");
     }
 
     private static void printSingle(Request r) {
@@ -214,8 +184,8 @@ public class Main {
         System.out.println("Маршрут: " + r.getRoute());
         System.out.println("------------------------------------");
     }
-    // ===== ВИДАЛЕННЯ ЗАПИСІВ ====
-    private static void deleteRequestByNumber(List<Request> requests, Scanner scanner) {
+
+    private static void deleteRequestByNumber(List<Request> requests, Scanner scanner, CsvStorage storage) {
         System.out.println("\n--- Видалення заявки ---");
 
         if (requests.isEmpty()) {
@@ -225,7 +195,6 @@ public class Main {
 
         int number = readInt(scanner, "Введіть номер заявки для видалення: ");
 
-        // знайдемо заявку
         Request target = null;
         for (Request r : requests) {
             if (r.getRequestNumber() == number) {
@@ -248,7 +217,7 @@ public class Main {
 
             if (answer.equalsIgnoreCase("Y")) {
                 requests.remove(target);
-                saveToCsv(requests);
+                storage.save(requests);
                 System.out.println("✅ Заявку видалено.");
                 return;
             } else if (answer.equalsIgnoreCase("N")) {
@@ -259,116 +228,7 @@ public class Main {
             }
         }
     }
-    // ===== МЕТОДИ ЗБЕРЕЖЕННЯВ CSV =====
-    private static void saveToCsv(List<Request> requests) {
-        try (BufferedWriter writer = new BufferedWriter(new FileWriter(CSV_FILE))) {
-            // заголовок
-            writer.write("requestNumber,date,vehicle,route");
-            writer.newLine();
 
-            for (Request r : requests) {
-                String line = r.getRequestNumber() + ","
-                        + r.getDate() + ","
-                        + csvEscape(r.getVehicle()) + ","
-                        + csvEscape(r.getRoute());
-                writer.write(line);
-                writer.newLine();
-            }
-        } catch (IOException e) {
-            System.out.println("⚠ Помилка збереження CSV: " + e.getMessage());
-        }
-    }
-    // ===== МЕТОДИ ЗАВАНТАЖЕННЯ З CSV =====
-    private static void loadFromCsv(List<Request> requests) {
-        File file = new File(CSV_FILE);
-        if (!file.exists()) {
-            // якщо файлу нема — нічого не завантажуємо
-            return;
-        }
-
-        try (BufferedReader reader = new BufferedReader(new FileReader(file))) {
-            String line;
-            boolean firstLine = true;
-
-            while ((line = reader.readLine()) != null) {
-                if (firstLine) {
-                    firstLine = false; // пропускаємо заголовок
-                    continue;
-                }
-
-                if (line.trim().isEmpty()) continue;
-
-                Request r = parseCsvLineToRequest(line);
-                if (r != null) {
-                    // захист від дублікатів по номеру
-                    if (!existsRequestNumber(requests, r.getRequestNumber())) {
-                        requests.add(r);
-                    }
-                }
-            }
-
-            if (!requests.isEmpty()) {
-                System.out.println("ℹ Завантажено заявок з CSV: " + requests.size());
-            }
-        } catch (IOException e) {
-            System.out.println("⚠ Помилка читання CSV: " + e.getMessage());
-        }
-    }
-    // ===== Допоміжні методи для CSV =====
-    private static String csvEscape(String text) {
-        if (text == null) return "";
-        // якщо є коми/лапки/переноси — беремо в лапки і подвоюємо лапки
-        boolean mustQuote = text.contains(",") || text.contains("\"") || text.contains("\n") || text.contains("\r");
-        String escaped = text.replace("\"", "\"\"");
-        return mustQuote ? "\"" + escaped + "\"" : escaped;
-    }
-
-    private static Request parseCsvLineToRequest(String line) {
-        // Розбираємо CSV рядок на 4 поля з підтримкою лапок
-        List<String> parts = splitCsv(line);
-        if (parts.size() < 4) return null;
-
-        try {
-            int number = Integer.parseInt(parts.get(0).trim());
-            LocalDate date = LocalDate.parse(parts.get(1).trim());
-            String vehicle = parts.get(2);
-            String route = parts.get(3);
-
-            return new Request(number, vehicle, route, date);
-        } catch (Exception e) {
-            // якщо якийсь рядок кривий — пропускаємо
-            return null;
-        }
-    }
-
-    private static List<String> splitCsv(String line) {
-        List<String> result = new ArrayList<>();
-        StringBuilder current = new StringBuilder();
-        boolean inQuotes = false;
-
-        for (int i = 0; i < line.length(); i++) {
-            char c = line.charAt(i);
-
-            if (c == '"') {
-                // якщо подвійні лапки "" усередині quoted-рядка — це одна лапка
-                if (inQuotes && i + 1 < line.length() && line.charAt(i + 1) == '"') {
-                    current.append('"');
-                    i++;
-                } else {
-                    inQuotes = !inQuotes;
-                }
-            } else if (c == ',' && !inQuotes) {
-                result.add(current.toString());
-                current.setLength(0);
-            } else {
-                current.append(c);
-            }
-        }
-        result.add(current.toString());
-        return result;
-    }
-
-    // ===== ДОПОМІЖНІ ФУНКЦІЇ ВВОДУ =====
     private static String readNonEmpty(Scanner scanner, String prompt) {
         while (true) {
             System.out.print(prompt);
@@ -395,7 +255,7 @@ public class Main {
             System.out.print(prompt);
             String s = scanner.nextLine().trim();
             try {
-                return LocalDate.parse(s); // формат yyyy-mm-dd
+                return LocalDate.parse(s);
             } catch (DateTimeParseException ex) {
                 System.out.println("Помилка: дата має бути у форматі yyyy-mm-dd (наприклад 2025-07-15).");
             }
